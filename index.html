@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper Marking (Bulk)</title>
+<style>
+  :root { --ink:#1c2430; --mute:#6a7686; --line:#d9dee6; --bg:#f4f6f9; --card:#fff; --go:#1f6feb; --ok:#147a3d; --bad:#b42318; --warn:#9a6700; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 "Segoe UI", Tahoma, Arial, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:22px; margin:8px 0 4px; }
+  p.sub { margin:0 0 16px; color:var(--mute); font-size:14px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px; }
+  h2 { font-size:16px; margin:0 0 10px; }
+  label { display:block; font-size:14px; margin:12px 0 4px; }
+  input[type=text], input[type=password], textarea, select { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font:inherit; background:#fff; }
+  input[type=password], #name { direction:ltr; text-align:left; }
+  textarea { min-height:70px; direction:ltr; text-align:left; }
+  input[type=file] { width:100%; font:inherit; padding:6px 0; }
+  button { padding:11px 16px; border:0; border-radius:8px; background:var(--go); color:#fff; font-family:inherit; font-size:15px; font-weight:600; cursor:pointer; }
+  button.wide { width:100%; margin-top:14px; }
+  button.second { background:#fff; color:var(--go); border:1px solid var(--go); }
+  button:disabled { opacity:.5; cursor:default; }
+  .tabs { display:flex; gap:8px; margin-bottom:14px; }
+  .tabs button { flex:1; background:#fff; color:var(--ink); border:1px solid var(--line); }
+  .tabs button.on { background:var(--go); color:#fff; border-color:var(--go); }
+  .msg { margin-top:12px; padding:10px 12px; border-radius:8px; font-size:15px; display:none; white-space:pre-line; }
+  .msg.ok { display:block; background:#e8f6ee; color:var(--ok); }
+  .msg.bad { display:block; background:#fdecea; color:var(--bad); }
+  .msg.wait { display:block; background:#eef3fb; color:#234; }
+  .hint { color:var(--mute); font-size:13px; margin-top:4px; }
+  .paste { border:2px dashed var(--line); border-radius:8px; padding:14px; text-align:center; color:var(--mute); font-size:14px; outline:none; }
+  .paste:focus { border-color:var(--go); }
+  .paste img { max-width:100%; max-height:180px; display:block; margin:8px auto 0; }
+  .row { display:flex; gap:8px; align-items:center; }
+  .row select { flex:1; }
+  .counts { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 4px; }
+  .counts a, .counts span { font-size:14px; padding:4px 10px; border-radius:999px; background:#eef1f5; color:var(--ink); text-decoration:none; }
+  .bar { height:10px; background:#e7ebf0; border-radius:999px; overflow:hidden; margin:8px 0; }
+  .bar div { height:100%; background:var(--go); width:0; transition:width .4s; }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; margin-top:10px; font-size:14px; }
+  th, td { text-align:right; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mute); font-weight:600; font-size:13px; }
+  td.file { direction:ltr; text-align:left; word-break:break-word; }
+  .st-ok { color:var(--ok); } .st-bad { color:var(--bad); } .st-ask { color:var(--warn); }
+  td label { display:inline; margin:0; font-size:14px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>تصحيح ورق الفصل</h1>
+  <p class="sub">Paper Marking (Bulk Teacher Upload)</p>
+
+  <section>
+    <label for="pw" style="margin-top:0">الباسوورد</label>
+    <input id="pw" type="password" autocomplete="current-password">
+  </section>
+
+  <div class="tabs">
+    <button id="tabNew" type="button">امتحان جديد</button>
+    <button id="tabOld" type="button">الامتحانات</button>
+  </div>
+
+  <!-- ============ create a new exam ============ -->
+  <section id="paneNew">
+    <h2>امتحان جديد</h2>
+    <label for="name">اسم الامتحان</label>
+    <input id="name" type="text" placeholder="Exam 14 - Lenses">
+    <label for="qp">ورقة الامتحان الفاضية (PDF)</label>
+    <input id="qp" type="file" accept="application/pdf,.pdf">
+    <label for="ms">المارك سكيم (PDF)</label>
+    <input id="ms" type="file" accept="application/pdf,.pdf">
+    <label>الـ Grade threshold: واحدة من التلاتة</label>
+    <input id="thFile" type="file" accept="application/pdf,.pdf,image/*">
+    <div class="hint">ملف PDF أو صورة</div>
+    <div id="paste" class="paste" tabindex="0">أو اضغط هنا واعمل Ctrl+V لصورة</div>
+    <textarea id="thText" placeholder="أو اكتبه هنا، مثلاً: A* 66, A 58, B 50, C 42 ..."></textarea>
+    <button id="create" class="wide">إنشاء الامتحان (حوالي 11 سنت)</button>
+    <div id="mNew" class="msg"></div>
+  </section>
+
+  <!-- ============ existing exams ============ -->
+  <section id="paneOld" class="hidden">
+    <h2>الامتحانات</h2>
+    <div class="row">
+      <select id="exam"><option value="">اختار امتحان</option></select>
+      <button id="reload" class="second" type="button" title="تحديث">تحديث</button>
+    </div>
+    <div id="mOld" class="msg"></div>
+    <div id="detail" class="hidden">
+      <div id="counts" class="counts"></div>
+      <div id="run" class="hidden">
+        <div id="runText"></div>
+        <div class="bar"><div id="runBar"></div></div>
+      </div>
+      <div class="scroll"><table id="rows"></table></div>
+      <button id="start" class="wide" disabled>ابدأ التصحيح</button>
+      <div class="hint">الورق اللي جنبه علامة حمرا هيتنقل لـ failed لما تدوس ابدأ. وأي ورق يترفع بعد ما تدوس، بيستنى المرة الجاية.</div>
+      <div id="mStart" class="msg"></div>
+    </div>
+  </section>
+</main>
+<script>
+const API = 'https://n8n.sciencetoonz.com/webhook/';
+const $ = id => document.getElementById(id);
+const DRIVE = id => 'https://drive.google.com/drive/folders/' + id;
+let pasted = null, current = null, poll = null;
+
+try { $('pw').value = localStorage.getItem('pmb_pw') || ''; } catch (e) {}
+function say(el, kind, text) { el.className = 'msg ' + kind; el.textContent = text; }
+function hush(el) { el.className = 'msg'; el.textContent = ''; }
+function form(el) {
+  const pw = $('pw').value;
+  if (!pw) { say(el, 'bad', 'اكتب الباسوورد الأول.'); return null; }
+  try { localStorage.setItem('pmb_pw', pw); } catch (e) {}
+  const fd = new FormData(); fd.append('password', pw); return fd;
+}
+async function call(path, fd) {
+  const r = await fetch(API + path, { method: 'POST', body: fd });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+function money(x) { return '$' + (Math.round(x * 100) / 100).toFixed(2); }
+
+// ---------------- tabs
+function tab(which) {
+  $('tabNew').classList.toggle('on', which === 'new'); $('tabOld').classList.toggle('on', which === 'old');
+  $('paneNew').classList.toggle('hidden', which !== 'new'); $('paneOld').classList.toggle('hidden', which !== 'old');
+  try { localStorage.setItem('pmb_tab', which); } catch (e) {}
+  if (which === 'old') loadExams();
+}
+$('tabNew').onclick = () => tab('new');
+$('tabOld').onclick = () => tab('old');
+
+// ---------------- create
+$('paste').addEventListener('paste', e => {
+  const item = [...(e.clipboardData || {}).items || []].find(i => i.type.startsWith('image/'));
+  if (!item) return;
+  e.preventDefault();
+  pasted = item.getAsFile();
+  $('paste').innerHTML = 'الصورة اتلزقت. (Ctrl+V تاني يغيرها)';
+  const img = document.createElement('img'); img.src = URL.createObjectURL(pasted); $('paste').appendChild(img);
+});
+
+$('create').onclick = async () => {
+  const m = $('mNew'), fd = form(m); if (!fd) return;
+  const name = $('name').value.trim(), qp = $('qp').files[0], ms = $('ms').files[0], th = $('thFile').files[0] || pasted;
+  if (!name) return say(m, 'bad', 'اكتب اسم الامتحان.');
+  if (!qp || !ms) return say(m, 'bad', 'اختار ورقة الامتحان الفاضية والمارك سكيم.');
+  fd.append('name', name); fd.append('qp', qp, qp.name); fd.append('ms', ms, ms.name);
+  if (th) fd.append('th', th, th.name || 'grade thresholds.png');
+  else if ($('thText').value.trim()) fd.append('thresholdText', $('thText').value.trim());
+  $('create').disabled = true; say(m, 'wait', 'جاري رفع الملفات…');
+  try {
+    const j = await call('bulk-create', fd);
+    if (!j.ok) { say(m, 'bad', j.message || 'ما اتعملش الامتحان.'); $('create').disabled = false; return; }
+    say(m, 'wait', 'الملفات اترفعت. جاري قراءة الامتحان… (حوالي دقيقة)');
+    waitForSpec(j.examId, name, 0);
+  } catch (e) { say(m, 'bad', 'تعذر الاتصال. حاول تاني.'); $('create').disabled = false; }
+};
+
+async function waitForSpec(examId, name, tries) {
+  const m = $('mNew');
+  await new Promise(r => setTimeout(r, 10000));
+  const fd = form(m); if (!fd) return;
+  fd.append('examId', examId);
+  try {
+    const j = await call('bulk-exam', fd);
+    if (j.ok && j.specReady) {
+      say(m, 'ok', `تم إنشاء الامتحان "${name}".\nارفع الورق في فولدر To mark، وبعدين افتح تاب "الامتحانات".`);
+      const a = document.createElement('a'); a.href = DRIVE(j.links.toMark); a.target = '_blank'; a.textContent = 'افتح فولدر To mark';
+      m.append('\n'); m.appendChild(a);
+      ['name', 'qp', 'ms', 'thFile', 'thText'].forEach(id => $(id).value = '');
+      pasted = null; $('paste').textContent = 'أو اضغط هنا واعمل Ctrl+V لصورة';
+      $('create').disabled = false; return;
+    }
+    if (!j.ok && !/مش موجود/.test(j.message || '')) { say(m, 'bad', j.message); $('create').disabled = false; return; }
+  } catch (e) { /* try again */ }
+  if (tries > 30) { say(m, 'bad', 'قراءة الامتحان خدت وقت أطول من المعتاد. افتح تاب "الامتحانات" بعد شوية.'); $('create').disabled = false; return; }
+  waitForSpec(examId, name, tries + 1);
+}
+
+// ---------------- existing exams
+async function loadExams() {
+  const m = $('mOld'), fd = form(m); if (!fd) return;
+  try {
+    const j = await call('bulk-exams', fd);
+    if (!j.ok) return say(m, 'bad', j.message || 'تعذر تحميل الامتحانات.');
+    hush(m);
+    const sel = $('exam'), keep = sel.value || (() => { try { return localStorage.getItem('pmb_exam'); } catch (e) { return ''; } })();
+    sel.innerHTML = '<option value="">اختار امتحان</option>' + j.exams.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
+    if (j.exams.some(e => e.id === keep)) { sel.value = keep; showExam(); }
+    else if (!j.exams.length) say(m, 'wait', 'مفيش امتحانات لسه. اعمل امتحان من تاب "امتحان جديد".');
+  } catch (e) { say(m, 'bad', 'تعذر الاتصال. حاول تاني.'); }
+}
+$('exam').onchange = () => { try { localStorage.setItem('pmb_exam', $('exam').value); } catch (e) {} showExam(); };
+$('reload').onclick = () => $('exam').value ? showExam() : loadExams();
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+const LABEL = {
+  ok: ['جاهزة', 'st-ok'], again: ['جاهزة (تصحيح تاني)', 'st-ok'],
+  bad: ['● الاسم مش على الشكل المطلوب: هتروح failed', 'st-bad'], dup: ['● مكررة: هتروح failed', 'st-bad'],
+  marked: ['● نفس الملف اتصحح قبل كده: هتروح failed', 'st-bad'],
+  twin: ['نفس الطالب بملفين: اختار واحد', 'st-ask'], askAgain: ['الطالب ده اتصحح قبل كده', 'st-ask'] };
+
+async function showExam() {
+  clearTimeout(poll);
+  const id = $('exam').value; hush($('mStart'));
+  if (!id) { $('detail').classList.add('hidden'); return; }
+  const m = $('mOld'), fd = form(m); if (!fd) return;
+  fd.append('examId', id);
+  say(m, 'wait', 'جاري التحميل…');
+  try {
+    const j = await call('bulk-exam', fd);
+    if (!j.ok) { $('detail').classList.add('hidden'); return say(m, 'bad', j.message || 'تعذر التحميل.'); }
+    hush(m); current = j; render(j);
+    if (j.running) poll = setTimeout(showExam, 20000);
+  } catch (e) { say(m, 'bad', 'تعذر الاتصال. حاول تاني.'); }
+}
+
+function render(j) {
+  $('detail').classList.remove('hidden');
+  const L = j.links || {};
+  $('counts').innerHTML =
+    `<a href="${DRIVE(L.toMark)}" target="_blank">To mark: ${j.counts.toMark}</a>` +
+    `<a href="${DRIVE(L.corrected)}" target="_blank">اتصححت: ${j.counts.finished}</a>` +
+    `<a href="${DRIVE(L.failed)}" target="_blank">failed: ${j.counts.failed}</a>` +
+    (L.sheet ? `<a href="https://docs.google.com/spreadsheets/d/${L.sheet}" target="_blank">شيت الدرجات</a>` : '') +
+    `<a href="${DRIVE(L.exam)}" target="_blank">فولدر الامتحان</a>`;
+  // a run in progress / stopped
+  $('run').classList.toggle('hidden', !(j.running || j.stopped));
+  if (j.running) {
+    $('runText').textContent = `جاري التصحيح: ${j.done} من ${j.total} ورقة.` + (j.added ? ` فيه ${j.added} ورقة اترفعت بعد ما بدأت، هتستنى المرة الجاية.` : '');
+    $('runBar').style.width = (j.total ? 100 * j.done / j.total : 0) + '%';
+  } else if (j.stopped) {
+    $('runText').textContent = `التصحيح وقف: ${j.done} من ${j.total} ورقة خلصوا. تقدر تدوس ابدأ تاني.`;
+    $('runBar').style.width = (j.total ? 100 * j.done / j.total : 0) + '%';
+  }
+  // the papers waiting in To mark
+  const t = $('rows');
+  if (!j.rows.length) { t.innerHTML = '<tr><td>مفيش ورق في To mark.</td></tr>'; }
+  else {
+    t.innerHTML = '<tr><th>الملف</th><th>الحالة</th></tr>';
+    for (const r of j.rows) {
+      const tr = t.insertRow(), [text, cls] = LABEL[r.state] || [r.state, ''];
+      tr.insertCell().outerHTML = `<td class="file">${esc(r.file)}</td>`;
+      const c = tr.insertCell(); c.className = cls;
+      if (r.state === 'twin') c.innerHTML = `${text}<br><label><input type="radio" name="pick-${r.serial}" value="${r.id}"> دي</label>`;
+      else if (r.state === 'askAgain') c.innerHTML = `${text}<br><label><input type="checkbox" class="again" value="${r.id}"> صحّحها تاني (القديمة تروح سلة المهملات)</label>` +
+        `<div class="hint">لو ما علّمتش، هتروح failed.</div>`;
+      else c.textContent = text;
+    }
+  }
+  t.querySelectorAll('input').forEach(i => i.onchange = price);
+  price();
+}
+
+function choices() {
+  const again = [...document.querySelectorAll('input.again:checked')].map(i => i.value);
+  const pick = [...document.querySelectorAll('input[type=radio]:checked')].map(i => i.value);
+  return { again, pick };
+}
+function price() {
+  const j = current; if (!j) return;
+  const { again, pick } = choices();
+  const n = j.rows.filter(r => r.state === 'ok').length + again.length + pick.length;
+  const b = $('start');
+  b.disabled = j.running || n === 0;
+  b.textContent = j.running ? 'التصحيح شغال…' : n ? `ابدأ التصحيح: ${n} ورقة، حوالي ${money(n * j.perPaper)}` : 'مفيش ورق جاهز';
+  b.dataset.n = n;
+}
+
+$('start').onclick = async () => {
+  const j = current, n = Number($('start').dataset.n || 0); if (!j || !n) return;
+  const { again: ag, pick: pk } = choices();
+  const picked = new Set(j.rows.filter(r => pk.includes(r.id)).map(r => r.serial));
+  const rejects = j.rows.filter(r => ['bad', 'dup', 'marked'].includes(r.state)).length +
+                  j.rows.filter(r => r.state === 'askAgain').length - ag.length +
+                  j.rows.filter(r => r.state === 'twin' && picked.has(r.serial) && !pk.includes(r.id)).length;
+  if (!confirm(`هيتصحح ${n} ورقة بحوالي ${money(n * j.perPaper)}.` + (rejects ? `\n${rejects} ورقة هتتنقل لـ failed.` : '') + '\nأبدأ؟')) return;
+  const m = $('mStart'), fd = form(m); if (!fd) return;
+  const { again, pick } = choices();
+  fd.append('examId', $('exam').value); fd.append('again', again.join(',')); fd.append('pick', pick.join(','));
+  $('start').disabled = true; say(m, 'wait', 'جاري البدء…');
+  try {
+    const r = await call('bulk-start', fd);
+    if (!r.ok) { say(m, 'bad', r.message || 'ما بدأش.'); price(); return; }
+    say(m, 'ok', `بدأ التصحيح: ${r.total} ورقة، حوالي ${money(r.cost)}.` + (r.rejected ? ` ${r.rejected} ورقة اتنقلت لـ failed.` : ''));
+    setTimeout(showExam, 3000);
+  } catch (e) { say(m, 'bad', 'تعذر الاتصال. حاول تاني.'); price(); }
+};
+
+// start on the tab used last time
+let first = 'new';
+try { first = localStorage.getItem('pmb_tab') || 'new'; } catch (e) {}
+tab(first);
+</script>
+</body>
+</html>
