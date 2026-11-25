@@ -33,6 +33,12 @@
   .paste { border:2px dashed var(--line); border-radius:8px; padding:14px; text-align:center; color:var(--mute); font-size:14px; outline:none; }
   .paste:focus { border-color:var(--go); }
   .paste img { max-width:100%; max-height:180px; display:block; margin:8px auto 0; }
+  .drop { display:block; margin:0; border:2px dashed var(--line); border-radius:8px; padding:14px; text-align:center; color:var(--mute); font-size:14px; cursor:pointer; background:#fafbfc; }
+  .drop input[type=file] { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+  .drop.has { border-style:solid; border-color:var(--ok); color:var(--ok); background:#f2faf5; }
+  .drop .fn { direction:ltr; unicode-bidi:plaintext; word-break:break-word; font-weight:600; }
+  .drop.over, .paste.over { border-color:var(--ok); background:#e8f6ee; color:var(--ok); }
+  .drop.all { padding:22px 14px; font-size:15px; margin-bottom:4px; }
   .row { display:flex; gap:8px; align-items:center; }
   .row select { flex:1; }
   .counts { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0 4px; }
@@ -69,14 +75,17 @@
     <h2>امتحان جديد</h2>
     <label for="name">اسم الامتحان</label>
     <input id="name" type="text" placeholder="Exam 14 - Lenses">
-    <label for="qp">ورقة الامتحان الفاضية (PDF)</label>
-    <input id="qp" type="file" accept="application/pdf,.pdf">
-    <label for="ms">المارك سكيم (PDF)</label>
-    <input id="ms" type="file" accept="application/pdf,.pdf">
+    <label>الملفات</label>
+    <div id="dropAll" class="drop all">اسحب الـ 3 ملفات مع بعض وارميهم هنا<br><span class="hint">بتتوزع من أسمائهم: اللي فيه ms أو mark scheme للمارك سكيم، واللي فيه threshold أو gt أو صورة للـ Grade threshold، والباقي لورقة الامتحان</span></div>
+    <div id="mDrop" class="msg"></div>
+    <label>ورقة الامتحان الفاضية (PDF)</label>
+    <label class="drop" data-for="qp" data-kind="pdf"><input id="qp" type="file" accept="application/pdf,.pdf"><span class="fn">اسحب الملف هنا أو اضغط لاختياره</span></label>
+    <label>المارك سكيم (PDF)</label>
+    <label class="drop" data-for="ms" data-kind="pdf"><input id="ms" type="file" accept="application/pdf,.pdf"><span class="fn">اسحب الملف هنا أو اضغط لاختياره</span></label>
     <label>الـ Grade threshold: واحدة من التلاتة</label>
-    <input id="thFile" type="file" accept="application/pdf,.pdf,image/*">
+    <label class="drop" data-for="thFile" data-kind="any"><input id="thFile" type="file" accept="application/pdf,.pdf,image/*"><span class="fn">اسحب الملف هنا أو اضغط لاختياره</span></label>
     <div class="hint">ملف PDF أو صورة</div>
-    <div id="paste" class="paste" tabindex="0">أو اضغط هنا واعمل Ctrl+V لصورة</div>
+    <div id="paste" class="paste" tabindex="0">أو اضغط هنا واعمل Ctrl+V لصورة (أو اسحب صورة وارميها هنا)</div>
     <textarea id="thText" placeholder="أو اكتبه هنا، مثلاً: A* 66, A 58, B 50, C 42 ..."></textarea>
     <button id="create" class="wide">إنشاء الامتحان (حوالي 11 سنت)</button>
     <div id="mNew" class="msg"></div>
@@ -136,13 +145,81 @@ $('tabNew').onclick = () => tab('new');
 $('tabOld').onclick = () => tab('old');
 
 // ---------------- create
+const PASTE_TEXT = $('paste').textContent;
+function setPasted(file, how) {
+  pasted = file; $('thFile').value = ''; showFile('thFile');
+  $('paste').textContent = how;
+  const img = document.createElement('img'); img.src = URL.createObjectURL(pasted); $('paste').appendChild(img);
+}
 $('paste').addEventListener('paste', e => {
   const item = [...(e.clipboardData || {}).items || []].find(i => i.type.startsWith('image/'));
   if (!item) return;
   e.preventDefault();
-  pasted = item.getAsFile();
-  $('paste').innerHTML = 'الصورة اتلزقت. (Ctrl+V تاني يغيرها)';
-  const img = document.createElement('img'); img.src = URL.createObjectURL(pasted); $('paste').appendChild(img);
+  setPasted(item.getAsFile(), 'الصورة اتلزقت. (Ctrl+V تاني يغيرها)');
+});
+
+// ---------------- drag and drop
+const isPdf = f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+const isImg = f => (f.type || '').startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(f.name);
+const FIELD = { qp: 'ورقة الامتحان', ms: 'المارك سكيم', thFile: 'الـ Grade threshold' };
+function showFile(id) {
+  const zone = document.querySelector(`.drop[data-for="${id}"]`), f = $(id).files[0];
+  zone.classList.toggle('has', !!f);
+  zone.querySelector('.fn').textContent = f ? '✓ ' + f.name : 'اسحب الملف هنا أو اضغط لاختياره';
+}
+function putFile(id, file) {
+  const dt = new DataTransfer(); dt.items.add(file); $(id).files = dt.files; showFile(id);
+  if (id === 'thFile' && pasted) { pasted = null; $('paste').textContent = PASTE_TEXT; }
+}
+function fitsZone(id, f) { return id === 'thFile' ? (isPdf(f) || isImg(f)) : isPdf(f); }
+function zoneEvents(el, onFiles) {
+  el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('over'));
+  el.addEventListener('drop', e => { e.preventDefault(); e.stopPropagation(); el.classList.remove('over'); onFiles([...(e.dataTransfer.files || [])]); });
+}
+// no file opens in the tab when it misses a box
+['dragover', 'drop'].forEach(t => window.addEventListener(t, e => e.preventDefault()));
+
+document.querySelectorAll('.drop[data-for]').forEach(zone => {
+  const id = zone.dataset.for;
+  $(id).addEventListener('change', () => { showFile(id); if (id === 'thFile' && $(id).files[0] && pasted) { pasted = null; $('paste').textContent = PASTE_TEXT; } });
+  zoneEvents(zone, files => {
+    const m = $('mDrop');
+    if (!files.length) return;
+    if (files.length > 1) return say(m, 'bad', `ارمي ملف واحد بس في خانة ${FIELD[id]}، أو ارمي الـ 3 في المربع الكبير.`);
+    if (!fitsZone(id, files[0])) return say(m, 'bad', `"${files[0].name}" مش ${id === 'thFile' ? 'PDF ولا صورة' : 'PDF'}، فما اتحطش في خانة ${FIELD[id]}.`);
+    hush(m); putFile(id, files[0]);
+  });
+});
+
+zoneEvents($('paste'), files => {
+  const f = files.find(isImg);
+  if (!f) return say($('mDrop'), 'bad', 'المربع ده للصور بس.');
+  hush($('mDrop')); setPasted(f, 'الصورة اتحطت. (ارمي صورة تانية أو Ctrl+V يغيرها)');
+});
+
+// the big box: sort the files by name
+function guess(f) {
+  const n = f.name.toLowerCase().replace(/\.[a-z0-9]+$/, '');
+  if (/(^|[^a-z])(ms|mark ?scheme|markscheme|marking)([^a-z]|$)/.test(n)) return 'ms';
+  if (isImg(f) || /(^|[^a-z])(gt|threshold|thresholds|grade|boundar(y|ies))([^a-z]|$)/.test(n)) return 'thFile';
+  return 'qp';
+}
+zoneEvents($('dropAll'), files => {
+  const m = $('mDrop');
+  if (!files.length) return;
+  const bad = files.filter(f => !isPdf(f) && !isImg(f));
+  if (bad.length) return say(m, 'bad', 'الملفات دي مش PDF ولا صورة:\n' + bad.map(f => f.name).join('\n'));
+  if (files.length > 3) return say(m, 'bad', `رميت ${files.length} ملفات. المطلوب 3 بس: ورقة الامتحان، والمارك سكيم، والـ Grade threshold.`);
+  const to = {};
+  for (const f of files) {
+    const id = guess(f);
+    if (id !== 'thFile' && !isPdf(f)) return say(m, 'bad', `"${f.name}" صورة، والصور بتنفع للـ Grade threshold بس.`);
+    if (to[id]) return say(m, 'bad', `الملفين "${to[id].name}" و"${f.name}" الاتنين شكلهم ${FIELD[id]}.\nارمي كل واحد في خانته تحت.`);
+    to[id] = f;
+  }
+  Object.entries(to).forEach(([id, f]) => putFile(id, f));
+  say(m, 'ok', Object.entries(to).map(([id, f]) => `${FIELD[id]}: ${f.name}`).join('\n') + '\nاتأكد إن كل ملف في مكانه الصح.');
 });
 
 $('create').onclick = async () => {
@@ -174,7 +251,8 @@ async function waitForSpec(examId, name, tries) {
       const a = document.createElement('a'); a.href = DRIVE(j.links.toMark); a.target = '_blank'; a.textContent = 'افتح فولدر To mark';
       m.append('\n'); m.appendChild(a);
       ['name', 'qp', 'ms', 'thFile', 'thText'].forEach(id => $(id).value = '');
-      pasted = null; $('paste').textContent = 'أو اضغط هنا واعمل Ctrl+V لصورة';
+      ['qp', 'ms', 'thFile'].forEach(showFile);
+      pasted = null; $('paste').textContent = PASTE_TEXT;
       $('create').disabled = false; return;
     }
     if (!j.ok && !/مش موجود/.test(j.message || '')) { say(m, 'bad', j.message); $('create').disabled = false; return; }
