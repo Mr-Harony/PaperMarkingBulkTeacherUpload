@@ -323,7 +323,10 @@ function render(j) {
   else {
     t.innerHTML = '<tr><th>الملف</th><th>الحالة</th></tr>';
     for (const r of j.rows) {
-      const tr = t.insertRow(), [text, cls] = LABEL[r.state] || [r.state, ''];
+      const tr = t.insertRow();
+      let [text, cls] = LABEL[r.state] || [r.state, ''];
+      if (j.running && r.inRun) [text, cls] = ['بتتصحح دلوقتي', 'st-ok'];
+      else if (j.running && r.later && cls === 'st-ok') [text, cls] = ['اترفعت بعد ما التصحيح بدأ: هتستنى المرة الجاية', 'st-ask'];
       tr.insertCell().outerHTML = `<td class="file">${esc(r.file)}</td>`;
       const c = tr.insertCell(); c.className = cls;
       if (r.state === 'twin') c.innerHTML = `${text}<br><label><input type="radio" name="pick-${r.serial}" value="${r.id}"> دي</label>`;
